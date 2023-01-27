@@ -20,6 +20,7 @@ void sendData(tcp::socket& socket, const std::string& message)
 
 int main(int argc, char* argv[])
 {
+    bool connected = false;
     io_service io_service;
     // socket creation
     ip::tcp::socket client_socket(io_service);
@@ -29,20 +30,43 @@ int main(int argc, char* argv[])
             tcp::endpoint(
                 address::from_string("127.0.0.1"),
                 9999));
-
-    // Getting username from user
+    connected = true;
     std::string response;
     sendData(client_socket, "test\n");
 
-    // Infinite loop for chit-chat
     while (true) {
-        // Fetching response
-        response = getData(client_socket);
+        try
+        {
+            // Fetching response
+            response = getData(client_socket);
 
-        // Popping last character "\n"
-        response.pop_back();
+            std::cout << "Server: " << response << std::endl;
+        }
+        catch (std::exception e)
+        {
+            std::cout << "server is offline\n";
+            client_socket.close();
+            io_service.stop();
+            connected = false;
+            while (!connected)
+            {
+                try
+                {
 
-        std::cout << "Server: " << response << std::endl;
+                    client_socket
+                        .connect(
+                            tcp::endpoint(
+                                address::from_string("127.0.0.1"),
+                                9999));
+                    std::cout << "Reconnected\n";
+                    connected = true;
+                }
+                catch (std::exception e)
+                {
+
+                }
+            }
+        }
     }
     return 0;
 }

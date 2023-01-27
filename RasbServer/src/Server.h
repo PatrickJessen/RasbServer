@@ -1,36 +1,74 @@
 #include "Connection_Handler.h"
+#include <vector>
 
-class Server {
+class server
+{
 public:
-    Server(io_context& io_context, short port)
-        : acceptor_(io_context, tcp::endpoint(tcp::v4(), port))
+    server(boost::asio::io_service& io_service, short port)
+        : io_service_(io_service),
+        acceptor_(io_service, tcp::endpoint(tcp::v4(), port))
     {
-        do_accept();
+        start_accept();
+        t = std::thread(&server::broadcast, this);
+        io_service.run();
+    }
 
-        io_context.run();
+    ~server()
+    {
         t.join();
+        for (int i = 0; i < sessions.size(); i++) {
+            sessions[i]->socket().close();
+        }
+    }
+
+private:
+    void start_accept()
+    {
+        session* new_session = new session(io_service_);
+        acceptor_.async_accept(new_session->socket(),
+            boost::bind(&server::handle_accept, this, new_session,
+                boost::asio::placeholders::error));
+
+        sessions.push_back(new_session);
+        std::cout << "new client joined\n";
     }
 
     void broadcast()
     {
-        
-    }
-private:
-    void do_accept() {
-        acceptor_.async_accept(
-            [this](boost::system::error_code ec, tcp::socket socket) {
-                if (!ec) {
-                    clients_.push_back(std::make_shared<Session>(std::move(socket), clients_));
-                    clients_[0]->start();
-                    t = std::thread(&Session::write, clients_[0]);
+        while (true)
+        {
+            std::string data = "";
+            std::getline(std::cin, data);
+            for (int i = 0; i < sessions.size() - 1; i++) {
+                try
+                {
+                    write(sessions[i]->socket(), boost::asio::buffer(data + "\n"));
                 }
-
-                do_accept();
-            });
+                catch (std::exception e)
+                {
+                    sessions.erase(sessions.begin() + i);
+                    std::cout << "client disconnected\n";
+                }
+            }
+        }
     }
 
+    void handle_accept(session* new_session,
+        const boost::system::error_code& error)
+    {
+        if (!error)
+        {
+            new_session->start();
+        }
+        else
+        {
+            delete new_session;
+        }
 
+        start_accept();
+    }
+    std::vector<session*> sessions;
+    boost::asio::io_service& io_service_;
     tcp::acceptor acceptor_;
-    std::vector<std::shared_ptr<Session>> clients_;
     std::thread t;
 };
