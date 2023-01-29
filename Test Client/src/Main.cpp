@@ -4,6 +4,12 @@
 using namespace boost::asio;
 using namespace boost::asio::ip;
 
+enum class Owner
+{
+    CLIENT,
+    ARDUINO
+};
+
 std::string getData(tcp::socket& socket)
 {
     streambuf buf;
@@ -14,8 +20,7 @@ std::string getData(tcp::socket& socket)
 
 void sendData(tcp::socket& socket, const std::string& message)
 {
-    write(socket,
-        buffer(message + "\n"));
+    write(socket, buffer(message + "\n"));
 }
 
 int main(int argc, char* argv[])
@@ -25,22 +30,19 @@ int main(int argc, char* argv[])
     // socket creation
     ip::tcp::socket client_socket(io_service);
 
-    client_socket
-        .connect(
-            tcp::endpoint(
-                address::from_string("127.0.0.1"),
-                9999));
+    client_socket.connect(tcp::endpoint(address::from_string("127.0.0.1"), 9999));
     connected = true;
+    sendData(client_socket, "" + (int)Owner::ARDUINO);
     std::string response;
-    sendData(client_socket, "test\n");
 
     while (true) {
         try
         {
-            // Fetching response
-            response = getData(client_socket);
+            std::string reply = "";
+            std::cin >> reply;
+            sendData(client_socket, reply);
 
-            std::cout << "Server: " << response << std::endl;
+            std::cout << "Sent message: " << reply << std::endl;
         }
         catch (std::exception e)
         {
@@ -53,11 +55,7 @@ int main(int argc, char* argv[])
                 try
                 {
 
-                    client_socket
-                        .connect(
-                            tcp::endpoint(
-                                address::from_string("127.0.0.1"),
-                                9999));
+                    client_socket.connect(tcp::endpoint(address::from_string("127.0.0.1"), 9999));
                     std::cout << "Reconnected\n";
                     connected = true;
                 }

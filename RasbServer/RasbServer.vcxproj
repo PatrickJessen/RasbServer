@@ -15567,9 +15567,8 @@
     <ClInclude Include="boost\yap\print.hpp" />
     <ClInclude Include="boost\yap\user_macros.hpp" />
     <ClInclude Include="boost\yap\yap.hpp" />
-    <ClInclude Include="src\Connection_Handler.h" />
+    <ClInclude Include="src\Session.h" />
     <ClInclude Include="src\Server.h" />
-    <ClInclude Include="src\User.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Main.cpp" />

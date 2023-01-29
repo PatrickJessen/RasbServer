@@ -15,13 +15,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\Connection_Handler.h">
+    <ClInclude Include="src\Session.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\Server.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="src\User.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="boost\accumulators\framework\accumulators\droppable_accumulator.hpp">

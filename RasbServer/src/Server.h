@@ -1,19 +1,19 @@
-#include "Connection_Handler.h"
+#include "Session.h"
 #include <vector>
 
-class server
+class Server
 {
 public:
-    server(boost::asio::io_service& io_service, short port)
+    Server(boost::asio::io_service& io_service, short port)
         : io_service_(io_service),
         acceptor_(io_service, tcp::endpoint(tcp::v4(), port))
     {
         start_accept();
-        t = std::thread(&server::broadcast, this);
+        t = std::thread(&Server::broadcast, this);
         io_service.run();
     }
 
-    ~server()
+    ~Server()
     {
         t.join();
         for (int i = 0; i < sessions.size(); i++) {
@@ -24,9 +24,9 @@ public:
 private:
     void start_accept()
     {
-        session* new_session = new session(io_service_);
+        Session* new_session = new Session(io_service_);
         acceptor_.async_accept(new_session->socket(),
-            boost::bind(&server::handle_accept, this, new_session,
+            boost::bind(&Server::handle_accept, this, new_session,
                 boost::asio::placeholders::error));
 
         sessions.push_back(new_session);
@@ -37,12 +37,21 @@ private:
     {
         while (true)
         {
-            std::string data = "";
-            std::getline(std::cin, data);
+            std::string msg = "";
             for (int i = 0; i < sessions.size() - 1; i++) {
                 try
                 {
-                    write(sessions[i]->socket(), boost::asio::buffer(data + "\n"));
+                    if (sessions[i]->get_owner() == Owner::ARDUINO) {
+                        std::string nextMsg(sessions[i]->get_data(), sizeof(sessions[i]->get_data()));
+                        msg = nextMsg;
+                    }
+                    if (!msg.empty()) {
+                        for (int j = 0; j < sessions.size(); j++) {
+                            if (sessions[j]->get_owner() == Owner::CLIENT) {
+                                write(sessions[j]->socket(), boost::asio::buffer(msg + "\n"));
+                            }
+                        }
+                    }
                 }
                 catch (std::exception e)
                 {
@@ -53,8 +62,7 @@ private:
         }
     }
 
-    void handle_accept(session* new_session,
-        const boost::system::error_code& error)
+    void handle_accept(Session* new_session, const boost::system::error_code& error)
     {
         if (!error)
         {
@@ -67,7 +75,7 @@ private:
 
         start_accept();
     }
-    std::vector<session*> sessions;
+    std::vector<Session*> sessions;
     boost::asio::io_service& io_service_;
     tcp::acceptor acceptor_;
     std::thread t;
