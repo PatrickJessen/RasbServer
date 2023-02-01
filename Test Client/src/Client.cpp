@@ -39,11 +39,12 @@ int main(int argc, char* argv[])
     while (true) {
         try
         {
-
-            sendData(client_socket, "test\n");
+            //response = "";
+            //sendData(client_socket, "test\n");
             response = getData(client_socket);
 
             std::cout << "Received message: " << response << std::endl;
+            Sleep(3000);
         }
         catch (std::exception e)
         {

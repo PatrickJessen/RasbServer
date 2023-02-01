@@ -1,7 +1,9 @@
-#include <cstdlib>
 #include <iostream>
-#include <boost/bind.hpp>
 #include <boost/asio.hpp>
+#include <map>
+#include <mutex>
+#include <queue>
+#include <thread>
 
 enum class Owner
 {
@@ -10,86 +12,74 @@ enum class Owner
     NONE
 };
 
-using boost::asio::ip::tcp;
+using namespace boost::asio;
+using namespace boost::asio::ip;
 
-class Session
-{
+const int BUFFER_SIZE = 1024;
+
+struct Message {
+    std::string data;
+    Owner owner;
+};
+
+class Session : public std::enable_shared_from_this<Session> {
 public:
-    Session(boost::asio::io_service& io_service)
-        : socket_(io_service)
-    {
+    explicit Session(int id, tcp::socket socket)
+        : id_(id), socket_(std::move(socket)) {}
+
+    void Start() {
+        DoRead();
     }
 
-    tcp::socket& socket()
-    {
-        return socket_;
+    int GetId() const { return id_; }
+    const Message& GetMsg() { return message; }
+    const Owner& GetOwner() { return m_Owner; }
+
+    void SendMsg(const std::string& message) {
+        auto self(shared_from_this());
+        boost::asio::async_write(
+            socket_, buffer(message, message.size()),
+            [this, self](boost::system::error_code ec, std::size_t /*length*/) {
+                if (!ec) {
+                    // Handle write error
+                }
+            });
     }
 
-    void start(std::vector<Session*>& sessions)
-    {
-        socket_.async_read_some(boost::asio::buffer(data_, max_length),
-            boost::bind(&Session::handle_read, this,
-                boost::asio::placeholders::error,
-                boost::asio::placeholders::bytes_transferred));
-
-        // Get Owner
-        if (firstConnect) {
-            std::string getOwner = &data_[0];
-            try
-            {
-                m_Owner = (Owner)atoi(getOwner.c_str());
-                std::cout << "Current session Owner: " << getOwner.c_str() << "\n";
-                firstConnect = false;
-                sessions.push_back(this);
-            }
-            catch (std::exception e)
-            {
-                
-            }
-        }
-    }
-    const std::vector<std::string> get_messageQueue() { return messages; }
-    Owner get_owner() const 
-    { 
-        return m_Owner; 
-    }
-    char* get_data() { return data_; }
-    void clear_data() { memset(data_, '\0', sizeof(data_)); }
 private:
-    void handle_read(const boost::system::error_code& error, size_t bytes_transferred)
-    {
-        if (!error)
-        {
-            boost::asio::async_read(socket_,
-                boost::asio::buffer(data_, bytes_transferred),
-                boost::bind(&Session::handle_write, this,
-                    boost::asio::placeholders::error));
-        }
-        else
-        {
-            delete this;
-        }
+    void DoRead() {
+        memset(data_, '\0', BUFFER_SIZE);
+        auto self(shared_from_this());
+        socket_.async_read_some(buffer(data_, BUFFER_SIZE),
+            [this, self](boost::system::error_code ec,
+                std::size_t length) {
+                    if (!ec) {
+                        message.data = "";
+                        message.data = std::string(data_, length);
+                        std::cout << message.data << " " << length << "\n";
+                        if (firstConnect) {
+                            m_Owner = (Owner)atoi(message.data.c_str());
+                            if (m_Owner == Owner::CLIENT) {
+                                std::cout << "Client joined the server\n";
+                                message.owner = Owner::ARDUINO;
+                            }
+                            else if (m_Owner == Owner::ARDUINO) {
+                                std::cout << "Arduino joined the server\n";
+                                message.owner = Owner::CLIENT;
+                            }
+                            firstConnect = false;
+                        }
+                        DoRead();
+                    }
+                    else {
+                        // Handle read error
+                    }
+            });
     }
-
-    void handle_write(const boost::system::error_code& error)
-    {
-        if (!error)
-        {
-            socket_.async_read_some(boost::asio::buffer(data_, max_length),
-                boost::bind(&Session::handle_read, this,
-                    boost::asio::placeholders::error,
-                    boost::asio::placeholders::bytes_transferred));
-        }
-        else
-        {
-            delete this;
-        }
-    }
-private:
     Owner m_Owner = Owner::NONE;
-    enum { max_length = 1024 };
-    char data_[max_length];
+    int id_;
     tcp::socket socket_;
+    char data_[BUFFER_SIZE];
+    Message message;
     bool firstConnect = true;
-    std::vector<std::string> messages;
 };

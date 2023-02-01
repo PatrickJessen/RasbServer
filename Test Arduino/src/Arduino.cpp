@@ -20,7 +20,7 @@ std::string getData(tcp::socket& socket)
 
 void sendData(tcp::socket& socket, const std::string& message)
 {
-    write(socket, buffer(message + "\n"));
+    write(socket, buffer(message));
 }
 
 int main(int argc, char* argv[])
@@ -44,6 +44,8 @@ int main(int argc, char* argv[])
             reply.append(std::to_string(temp));
             sendData(client_socket, reply);
 
+            std::string f = getData(client_socket);
+            std::cout << "Received message: " << f << std::endl;
             std::cout << "Sent message: " << reply << std::endl;
             Sleep(3000);
         }

@@ -6,12 +6,10 @@
 int main() {
     try
     {
-        boost::asio::io_service io_service;
-
-        Server s(io_service, 9999);
-
-        io_service.run();
-        io_service.stop();
+        boost::asio::io_service service;
+        Server server(service, 9999);
+        std::thread t([&service]() { service.run(); });
+        t.join();
     }
     catch (std::exception& e)
     {
@@ -21,76 +19,68 @@ int main() {
     return 0;
 }
 
-/*
-    Bind socket to port 8888 on localhost
-*/
-//#include<io.h>
-//#include<stdio.h>
-//#include<winsock2.h>
+//#include <iostream>
+//#include <boost/asio.hpp>
+//#include <boost/array.hpp>
 //
-//#pragma comment(lib,"ws2_32.lib") //Winsock Library
+//using namespace std;
+//using namespace boost::asio;
+//using namespace boost::asio::ip;
 //
-//int main()
-//{
-//    WSADATA wsa;
-//    SOCKET s, new_socket;
-//    struct sockaddr_in server, client;
-//    int c;
-//    const char* message = "Hello Client , I have received your connection. But I have to go now, bye\n";
+//void handle_connection(tcp::socket socket) {
+//    try {
+//        for (;;) {
+//            // Read data from the client
+//            boost::array<char, 128> buf;
+//            boost::system::error_code error;
+//            size_t len = socket.read_some(buffer(buf), error);
 //
-//    printf("\nInitialising Winsock...");
-//    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
-//    {
-//        printf("Failed. Error Code : %d", WSAGetLastError());
-//        return 1;
+//            // Check if any data was received
+//            if (len == 0) {
+//                cout << "No data received." << endl;
+//                break;
+//            }
+//
+//            // Check if the connection was closed by the client
+//            if (error == error::eof)
+//                break;
+//            else if (error)
+//                throw boost::system::system_error(error);
+//
+//            // Print the data received
+//            cout << "Data received: ";
+//            for (int i = 0; i < len; i++)
+//                cout << buf[i];
+//            cout << endl;
+//
+//            // Write the data back to the client
+//            boost::asio::write(socket, buffer(buf, len));
+//        }
 //    }
-//
-//    printf("Initialised.\n");
-//
-//    //Create a socket
-//    if ((s = socket(AF_INET, SOCK_STREAM, 0)) == INVALID_SOCKET)
-//    {
-//        printf("Could not create socket : %d", WSAGetLastError());
+//    catch (exception& e) {
+//        cerr << e.what() << endl;
 //    }
+//}
 //
-//    printf("Socket created.\n");
+//int main() {
+//    try {
+//        io_service io_service;
 //
-//    //Prepare the sockaddr_in structure
-//    server.sin_family = AF_INET;
-//    server.sin_addr.s_addr = INADDR_ANY;
-//    server.sin_port = htons(9999);
+//        // Listen on all available interfaces on port 12345
+//        tcp::acceptor acceptor(io_service, tcp::endpoint(tcp::v4(), 9999));
 //
-//    //Bind
-//    if (bind(s, (struct sockaddr*)&server, sizeof(server)) == SOCKET_ERROR)
-//    {
-//        printf("Bind failed with error code : %d", WSAGetLastError());
+//        for (;;) {
+//            // Accept a new connection
+//            tcp::socket socket(io_service);
+//            acceptor.accept(socket);
+//
+//            // Start a new thread to handle the connection
+//            thread(handle_connection, move(socket)).detach();
+//        }
 //    }
-//
-//    puts("Bind done");
-//
-//    //Listen to incoming connections
-//    listen(s, 3);
-//
-//    //Accept and incoming connection
-//    puts("Waiting for incoming connections...");
-//
-//    c = sizeof(struct sockaddr_in);
-//    new_socket = accept(s, (struct sockaddr*)&client, &c);
-//    if (new_socket == INVALID_SOCKET)
-//    {
-//        printf("accept failed with error code : %d", WSAGetLastError());
+//    catch (exception& e) {
+//        cerr << e.what() << endl;
 //    }
-//
-//    puts("Connection accepted");
-//
-//    //Reply to client
-//
-//    send(new_socket, message, strlen(message), 0);
-//
-//    getchar();
-//
-//    closesocket(s);
-//    WSACleanup();
 //
 //    return 0;
 //}

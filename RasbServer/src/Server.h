@@ -1,139 +1,79 @@
 #include "Session.h"
-#include <vector>
 
-struct Message
-{
-    std::string message;
-    Owner to;
-    Message(std::string msg, Owner to)
-        : message(msg), to(to) {}
-};
-
-class Server
-{
+class Server {
 public:
-    Server(boost::asio::io_service& io_service, short port)
-        : io_service_(io_service),
-        acceptor_(io_service, tcp::endpoint(tcp::v4(), port))
-    {
-        start_accept();
-        arduinoReadThread = std::thread(&Server::read_from, this, Owner::ARDUINO);
-        arduinoSendThread = std::thread(&Server::send_to, this, Owner::ARDUINO);
-        clientSendThread = std::thread(&Server::send_to, this, Owner::CLIENT);
-        clientReadThread = std::thread(&Server::read_from, this, Owner::CLIENT);
-        io_service.run();
+    Server(boost::asio::io_service& service, unsigned short port)
+        : service_(service),
+        acceptor_(service, tcp::endpoint(tcp::v4(), port)),
+        next_id_(1),
+        running_(true) {
+        DoAccept();
+        message_thread_ = std::thread(&Server::MessageThread, this);
     }
 
-    ~Server()
-    {
-        arduinoReadThread.join();
-        clientSendThread.join();
-        clientReadThread.join();
-        arduinoSendThread.join();
-        for (int i = 0; i < sessions.size(); i++) {
-            sessions[i]->socket().close();
-        }
+    void Stop() {
+        running_ = false;
+        message_thread_.join();
+    }
+
+    void AddMessage(const Message& message) {
+        std::lock_guard<std::mutex> lock(message_queue_mutex_);
+        message_queue_.push(message);
     }
 
 private:
-    void start_accept()
-    {
-        Session* new_session = new Session(io_service_);
-        acceptor_.async_accept(new_session->socket(),
-            boost::bind(&Server::handle_accept, this, new_session,
-                boost::asio::placeholders::error));
+    void DoAccept() {
+        acceptor_.async_accept(
+            [this](boost::system::error_code ec, tcp::socket socket) {
+                if (!ec) {
+                    int id = next_id_;
+                    ++next_id_;
+                    auto session = std::make_shared<Session>(id, std::move(socket));
+                    session->Start();
+                    {
+                        std::lock_guard<std::mutex> lock(session_map_mutex_);
+                        sessions.push_back(session);
+                    }
+                }
+                DoAccept();
+            });
     }
 
-    void read_from(const Owner& owner)
-    {
-        while (true)
-        {
+    void MessageThread() {
+        while (running_) {
             for (int i = 0; i < sessions.size(); i++) {
-                try
+                Message message;
+                AddMessage(sessions[i]->GetMsg());
                 {
-                    if (sessions[i]->get_owner() != owner) {
-                        std::string nextMsg(sessions[i]->get_data(), sizeof(sessions[i]->get_data()));
-                        if (nextMsg[0] != '\0') {
-                            if (owner == Owner::ARDUINO) {
-                                messageQueue.push_back(Message(nextMsg, Owner::CLIENT));
-                            }
-                            else if (owner == Owner::CLIENT) {
-                                messageQueue.push_back(Message(nextMsg, Owner::ARDUINO));
-                            }
-                            sessions[i]->clear_data();
-                        }
+                    std::unique_lock<std::mutex> lock(message_queue_mutex_);
+                    if (message_queue_.empty()) {
+                        lock.unlock();
+                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                        continue;
                     }
-                }
-                catch (std::exception e)
-                {
-                    sessions.erase(sessions.begin() + i);
-                    std::cout << "client disconnected\n";
-                }
-            }
-            Sleep(500);
-        }
-    }
-
-    void send_to(const Owner& owner)
-    {
-        while (true)
-        {
-            while (!messageQueue.empty()) {
-                for (int i = 0; i < sessions.size(); i++) {
-                    try
-                    {
-                        if (messageQueue[0].to == sessions[i]->get_owner()) {
-                            if (sessions[i]->get_owner() != owner) {
-                                write(sessions[i]->socket(), boost::asio::buffer(messageQueue[0].message + "\n"));
-
-                            }
+                    message = message_queue_.front();
+                    //std::cout << message.data << "\n";
+                    message_queue_.pop();
+                    std::unique_lock<std::mutex> message_lock(session_map_mutex_);
+                    for (int j = 0; j < sessions.size(); j++) {
+                        if (sessions[j]->GetOwner() == message.owner) {
+                            sessions[j]->SendMsg(message.data);
+                            std::this_thread::sleep_for(std::chrono::milliseconds(100));
                         }
-                        if (i == sessions.size()) {
-                            messageQueue.pop_back();
-                        }
-                    }
-                    catch (std::exception e)
-                    {
-                        sessions.erase(sessions.begin() + i);
-                        std::cout << "client disconnected\n";
                     }
                 }
             }
-            Sleep(500);
         }
     }
 
-    void handle_accept(Session* new_session, const boost::system::error_code& error)
-    {
-        if (!error)
-        {
-            new_session->start(std::ref(sessions));
-        }
-        else
-        {
-            delete new_session;
-        }
-
-        start_accept();
-    }
-
-    void wait_for_assignment(Session* new_session)
-    {
-        while (new_session->get_owner() == Owner::NONE)
-        {
-            std::cout << "Waiting for session to get assigned\n";
-            Sleep(1000);
-        }
-    }
-
-    std::vector<Session*> sessions;
-    boost::asio::io_service& io_service_;
+    boost::asio::io_service& service_;
     tcp::acceptor acceptor_;
-    std::thread arduinoReadThread;
-    std::thread arduinoSendThread;
-    std::thread clientSendThread;
-    std::thread clientReadThread;
-    std::vector<std::string> msgQueueClient;
-    std::vector<std::string> msgQueueArduino;
-    std::vector<Message> messageQueue;
+    int next_id_;
+    std::vector<std::shared_ptr<Session>> sessions;
+    std::mutex session_map_mutex_;
+    std::queue<Message> message_queue_;
+    std::mutex message_queue_mutex_;
+    std::mutex message_mutex;
+    std::thread message_thread_;
+    bool running_;
 };
