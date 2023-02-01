@@ -1,6 +1,14 @@
 #include "Session.h"
 #include <vector>
 
+struct Message
+{
+    std::string message;
+    Owner to;
+    Message(std::string msg, Owner to)
+        : message(msg), to(to) {}
+};
+
 class Server
 {
 public:
@@ -9,13 +17,19 @@ public:
         acceptor_(io_service, tcp::endpoint(tcp::v4(), port))
     {
         start_accept();
-        t = std::thread(&Server::broadcast, this);
+        arduinoReadThread = std::thread(&Server::read_from, this, Owner::ARDUINO);
+        arduinoSendThread = std::thread(&Server::send_to, this, Owner::ARDUINO);
+        clientSendThread = std::thread(&Server::send_to, this, Owner::CLIENT);
+        clientReadThread = std::thread(&Server::read_from, this, Owner::CLIENT);
         io_service.run();
     }
 
     ~Server()
     {
-        t.join();
+        arduinoReadThread.join();
+        clientSendThread.join();
+        clientReadThread.join();
+        arduinoSendThread.join();
         for (int i = 0; i < sessions.size(); i++) {
             sessions[i]->socket().close();
         }
@@ -28,28 +42,25 @@ private:
         acceptor_.async_accept(new_session->socket(),
             boost::bind(&Server::handle_accept, this, new_session,
                 boost::asio::placeholders::error));
-
-        sessions.push_back(new_session);
-        std::cout << "new client joined\n";
     }
 
-    void broadcast()
+    void read_from(const Owner& owner)
     {
         while (true)
         {
-            std::string msg = "";
-            for (int i = 0; i < sessions.size() - 1; i++) {
+            for (int i = 0; i < sessions.size(); i++) {
                 try
                 {
-                    if (sessions[i]->get_owner() == Owner::ARDUINO) {
+                    if (sessions[i]->get_owner() != owner) {
                         std::string nextMsg(sessions[i]->get_data(), sizeof(sessions[i]->get_data()));
-                        msg = nextMsg;
-                    }
-                    if (!msg.empty()) {
-                        for (int j = 0; j < sessions.size(); j++) {
-                            if (sessions[j]->get_owner() == Owner::CLIENT) {
-                                write(sessions[j]->socket(), boost::asio::buffer(msg + "\n"));
+                        if (nextMsg[0] != '\0') {
+                            if (owner == Owner::ARDUINO) {
+                                messageQueue.push_back(Message(nextMsg, Owner::CLIENT));
                             }
+                            else if (owner == Owner::CLIENT) {
+                                messageQueue.push_back(Message(nextMsg, Owner::ARDUINO));
+                            }
+                            sessions[i]->clear_data();
                         }
                     }
                 }
@@ -59,6 +70,36 @@ private:
                     std::cout << "client disconnected\n";
                 }
             }
+            Sleep(500);
+        }
+    }
+
+    void send_to(const Owner& owner)
+    {
+        while (true)
+        {
+            while (!messageQueue.empty()) {
+                for (int i = 0; i < sessions.size(); i++) {
+                    try
+                    {
+                        if (messageQueue[0].to == sessions[i]->get_owner()) {
+                            if (sessions[i]->get_owner() != owner) {
+                                write(sessions[i]->socket(), boost::asio::buffer(messageQueue[0].message + "\n"));
+
+                            }
+                        }
+                        if (i == sessions.size()) {
+                            messageQueue.pop_back();
+                        }
+                    }
+                    catch (std::exception e)
+                    {
+                        sessions.erase(sessions.begin() + i);
+                        std::cout << "client disconnected\n";
+                    }
+                }
+            }
+            Sleep(500);
         }
     }
 
@@ -66,7 +107,7 @@ private:
     {
         if (!error)
         {
-            new_session->start();
+            new_session->start(std::ref(sessions));
         }
         else
         {
@@ -75,8 +116,24 @@ private:
 
         start_accept();
     }
+
+    void wait_for_assignment(Session* new_session)
+    {
+        while (new_session->get_owner() == Owner::NONE)
+        {
+            std::cout << "Waiting for session to get assigned\n";
+            Sleep(1000);
+        }
+    }
+
     std::vector<Session*> sessions;
     boost::asio::io_service& io_service_;
     tcp::acceptor acceptor_;
-    std::thread t;
+    std::thread arduinoReadThread;
+    std::thread arduinoSendThread;
+    std::thread clientSendThread;
+    std::thread clientReadThread;
+    std::vector<std::string> msgQueueClient;
+    std::vector<std::string> msgQueueArduino;
+    std::vector<Message> messageQueue;
 };
