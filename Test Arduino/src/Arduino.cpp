@@ -16,12 +16,20 @@ void getData(tcp::socket& socket)
 {
     while (true)
     {
-        message = "";
-        streambuf buf;
-        read_until(socket, buf, "\n");
-        std::string data = buffer_cast<const char*>(buf.data());
-        message = data;
-        std::cout << "Received message: " << message << std::endl;
+        try
+        {
+
+            message = "";
+            streambuf buf;
+            read_until(socket, buf, "\n");
+            std::string data = buffer_cast<const char*>(buf.data());
+            message = data;
+            std::cout << "Received message: " << message << std::endl;
+        }
+        catch (std::exception e)
+        {
+            std::cout << e.what() << "\n";
+        }
     }
 }
 
@@ -37,8 +45,8 @@ int main(int argc, char* argv[])
     // socket creation
     ip::tcp::socket client_socket(io_service);
 
-    client_socket.connect(tcp::endpoint(address::from_string("192.168.1.112"), 9999));
-    //client_socket.connect(tcp::endpoint(address::from_string("127.0.0.1"), 9999));
+    //client_socket.connect(tcp::endpoint(address::from_string("192.168.1.112"), 9999));
+    client_socket.connect(tcp::endpoint(address::from_string("127.0.0.1"), 9999));
     connected = true;
     sendData(client_socket, std::to_string((int)Owner::ARDUINO));
     std::string response;

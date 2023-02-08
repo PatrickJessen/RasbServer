@@ -39,7 +39,7 @@ int main(int argc, char* argv[])
     client_socket.connect(tcp::endpoint(address::from_string("127.0.0.1"), 9999));
     connected = true;
 
-    sendData(client_socket, std::to_string((int)Owner::CLIENT));
+    sendData(client_socket, std::to_string((int)Owner::ARDUINO));
     std::string response;
 
     std::thread(&getData, std::ref(client_socket)).detach();
@@ -47,12 +47,18 @@ int main(int argc, char* argv[])
     while (true) {
         try
         {
-            int randNum = rand() % 5;
-            std::string msg = std::to_string(randNum);
+            std::string msg = "";
+            int randNum = rand() % 1;
+            if (randNum == 0) {
+                msg = "Lights false";
+            }
+            else if (randNum == 1) {
+                msg = "Lights true";
+            }
             sendData(client_socket, msg);
-            std::cout << "Send message: " << msg << "\n";
+            //std::cout << "Send message: " << msg << "\n";
             
-            Sleep(3000);
+            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
         }
         catch (std::exception e)
         {

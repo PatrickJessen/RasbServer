@@ -46310,10 +46310,10 @@
     <ClCompile Include="src\Main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Server.cpp">
+    <ClCompile Include="src\Session.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Session.cpp">
+    <ClCompile Include="src\Server.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

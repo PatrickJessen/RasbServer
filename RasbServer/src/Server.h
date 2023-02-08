@@ -11,15 +11,15 @@ public:
 private:
     void DoAccept();
     void MessageThread();
-    const bool& CheckDisconnections(const int& i);
+    bool CheckDisconnections(const int& i);
 
 private:
     boost::asio::io_service& service;
     tcp::acceptor acceptor;
     int next_id;
     std::vector<std::shared_ptr<Session>> sessions;
-    std::mutex session_mutex;
     std::queue<Message> message_queue;
+    std::mutex session_mutex;
     std::mutex message_queue_mutex;
     std::mutex message_mutex;
     std::thread message_thread;
