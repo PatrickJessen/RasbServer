@@ -8,8 +8,9 @@ int main() {
     {
         boost::asio::io_service service;
         Server server(service, 9999);
-        std::thread t([&service]() { service.run(); });
-        t.join();
+        service.run();
+        //std::thread t([&service]() { service.run(); });
+        //t.join();
     }
     catch (std::exception& e)
     {

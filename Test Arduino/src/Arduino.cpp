@@ -10,12 +10,19 @@ enum class Owner
     ARDUINO
 };
 
-std::string getData(tcp::socket& socket)
+std::string message = "";
+
+void getData(tcp::socket& socket)
 {
-    streambuf buf;
-    read_until(socket, buf, "\n");
-    std::string data = buffer_cast<const char*>(buf.data());
-    return data;
+    while (true)
+    {
+        message = "";
+        streambuf buf;
+        read_until(socket, buf, "\n");
+        std::string data = buffer_cast<const char*>(buf.data());
+        message = data;
+        std::cout << "Received message: " << message << std::endl;
+    }
 }
 
 void sendData(tcp::socket& socket, const std::string& message)
@@ -30,11 +37,13 @@ int main(int argc, char* argv[])
     // socket creation
     ip::tcp::socket client_socket(io_service);
 
-    //client_socket.connect(tcp::endpoint(address::from_string("192.168.1.112"), 9999));
-    client_socket.connect(tcp::endpoint(address::from_string("127.0.0.1"), 9999));
+    client_socket.connect(tcp::endpoint(address::from_string("192.168.1.112"), 9999));
+    //client_socket.connect(tcp::endpoint(address::from_string("127.0.0.1"), 9999));
     connected = true;
     sendData(client_socket, std::to_string((int)Owner::ARDUINO));
     std::string response;
+
+    std::thread(&getData, std::ref(client_socket)).detach();
 
     while (true) {
         try
@@ -44,10 +53,8 @@ int main(int argc, char* argv[])
             reply.append(std::to_string(temp));
             sendData(client_socket, reply);
 
-            std::string f = getData(client_socket);
-            std::cout << "Received message: " << f << std::endl;
             std::cout << "Sent message: " << reply << std::endl;
-            Sleep(3000);
+            std::this_thread::sleep_for(std::chrono::milliseconds(2000));
         }
         catch (std::exception e)
         {
@@ -71,5 +78,6 @@ int main(int argc, char* argv[])
             }
         }
     }
+    client_socket.close();
     return 0;
 }

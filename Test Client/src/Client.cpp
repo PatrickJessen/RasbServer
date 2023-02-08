@@ -10,12 +10,18 @@ enum class Owner
     ARDUINO
 };
 
-std::string getData(tcp::socket& socket)
+std::string message = "";
+
+void getData(tcp::socket& socket)
 {
-    streambuf buf;
-    read_until(socket, buf, "\n");
-    std::string data = buffer_cast<const char*>(buf.data());
-    return data;
+    while (true)
+    {
+        streambuf buf;
+        read_until(socket, buf, "\n");
+        std::string data = buffer_cast<const char*>(buf.data());
+        message = data;
+        std::cout << "Received message: " << message << std::endl;
+    }
 }
 
 void sendData(tcp::socket& socket, const std::string& message)
@@ -36,14 +42,16 @@ int main(int argc, char* argv[])
     sendData(client_socket, std::to_string((int)Owner::CLIENT));
     std::string response;
 
+    std::thread(&getData, std::ref(client_socket)).detach();
+
     while (true) {
         try
         {
-            //response = "";
-            //sendData(client_socket, "test\n");
-            response = getData(client_socket);
-
-            std::cout << "Received message: " << response << std::endl;
+            int randNum = rand() % 5;
+            std::string msg = std::to_string(randNum);
+            sendData(client_socket, msg);
+            std::cout << "Send message: " << msg << "\n";
+            
             Sleep(3000);
         }
         catch (std::exception e)
@@ -67,6 +75,7 @@ int main(int argc, char* argv[])
                 }
             }
         }
+        client_socket.close();
     }
     return 0;
 }
