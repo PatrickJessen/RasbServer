@@ -15572,6 +15572,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\Main.cpp" />
+    <ClCompile Include="src\Server.cpp" />
+    <ClCompile Include="src\Session.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="boost\wave\cpplexer\re2clex\cpp_re.inc" />
