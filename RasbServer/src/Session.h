@@ -16,7 +16,7 @@ using namespace boost::asio;
 using namespace boost::asio::ip;
 
 struct Message {
-    std::string data;
+    std::string data = "";
     Owner owner;
 };
 

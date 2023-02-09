@@ -57,18 +57,20 @@ void Server::DoAccept() {
 
 void Server::MessageThread() {
     while (running) {
+        std::lock_guard<std::mutex> message_lock(session_mutex);
         for (int i = 0; i < sessions.size(); i++) {
             Message message;
             // Check if socket is still available
             if (CheckDisconnections(i)) {
                 continue;
             }
-            std::lock_guard<std::mutex> message_lock(session_mutex);
             {
                 try
                 {
                     // If no data is available continue the loop
                     if (sessions[i]->GetMsg().data == "") {
+                        if (i == 0)
+                            break;
                         continue;
                     }
 
@@ -80,7 +82,6 @@ void Server::MessageThread() {
                         std::this_thread::sleep_for(std::chrono::milliseconds(1));
                         continue;
                     }
-
                     // Save next message
                     message = message_queue.front();
                     for (int j = 0; j < sessions.size(); j++) {
@@ -113,19 +114,24 @@ void Server::MessageThread() {
     }
 }
 
-const bool& Server::CheckDisconnections(const int& i)
+bool Server::CheckDisconnections(const int& i)
 {
     try
     {
-        if (!sessions[i]->GetIsConnected()) {
-            if (sessions[i]->GetOwner() == Owner::ARDUINO) {
-                std::cout << "Arduino disconnected\n";
+        if (sessions[i] != nullptr) {
+            if (!sessions[i]->GetIsConnected()) {
+                if (sessions[i]->GetOwner() == Owner::ARDUINO) {
+                    std::cout << "Arduino disconnected\n";
+                }
+                else if (sessions[i]->GetOwner() == Owner::CLIENT) {
+                    std::cout << "Client disconnected\n";
+                }
+                sessions.erase(sessions.begin() + i);
+                return true;
             }
-            else if (sessions[i]->GetOwner() == Owner::CLIENT) {
-                std::cout << "Client disconnected\n";
-            }
-            sessions.erase(sessions.begin() + i);
-            return true;
+        }
+        else {
+            std::cout << "Error: " << i << "\n";
         }
         return false;
     }
@@ -135,4 +141,5 @@ const bool& Server::CheckDisconnections(const int& i)
         sessions.erase(sessions.begin() + i);
         return true;
     }
+    return false;
 }
