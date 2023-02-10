@@ -69,8 +69,6 @@ void Server::MessageThread() {
                 {
                     // If no data is available continue the loop
                     if (sessions[i]->GetMsg().data == "") {
-                        if (i == 0)
-                            break;
                         continue;
                     }
 
@@ -114,6 +112,11 @@ void Server::MessageThread() {
     }
 }
 
+/// <summary>
+/// Check if session has disconnected by checking if socket is still valid
+/// </summary>
+/// <param name="i">Current position in array</param>
+/// <returns>True if disconnected else false</returns>
 bool Server::CheckDisconnections(const int& i)
 {
     try

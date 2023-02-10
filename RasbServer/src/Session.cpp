@@ -44,12 +44,10 @@ const bool& Session::IsConnected()
         try
         {
             streambuf buf;
-            //write(m_Socket, buffer(""));
             read_until(m_Socket, buf, "");
         }
         catch (std::exception e)
         {
-            m_Socket.close();
             m_IsConnected = false;
         }
     }
